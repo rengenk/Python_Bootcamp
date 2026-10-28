@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tic-Tac Toe</title>
+  <style>
+    :root { color-scheme: dark; --bg: #10131b; --panel: #191e2a; --cell: #232a3a; --line: #343d52; --text: #f4f6fb; --muted: #a5aec2; --accent: #8b9cff; --o: #66dfc0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(ellipse at top, #222b43 0, var(--bg) 60%); color: var(--text); font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    main { width: min(100%, 440px); text-align: center; }
+    .eyebrow { color: var(--accent); font-size: .78rem; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
+    h1 { margin: 10px 0 8px; font-size: clamp(2rem, 8vw, 3rem); letter-spacing: -.05em; }
+    .subtitle { margin: 0 0 24px; color: var(--muted); }
+    .panel { padding: clamp(18px, 5vw, 28px); border: 1px solid #ffffff12; border-radius: 24px; background: #191e2add; box-shadow: 0 24px 80px #0005; }
+    .status { min-height: 28px; margin: 0 0 18px; font-weight: 650; }
+    .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .cell { aspect-ratio: 1; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 16px; background: var(--cell); color: var(--accent); font-size: clamp(2.8rem, 15vw, 4.5rem); font-weight: 800; cursor: pointer; transition: transform .12s, background .12s, border-color .12s; }
+    .cell:empty::after { content: ""; }
+    .cell:hover:enabled { transform: translateY(-2px); background: #2b3448; border-color: var(--accent); }
+    .cell:disabled { cursor: default; opacity: 1; }
+    .cell.o { color: var(--o); }
+    .cell.winner { border-color: var(--o); background: #25453f; }
+    .actions { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
+    button.action { border: 0; border-radius: 12px; padding: 12px 18px; background: var(--accent); color: #10131b; font: inherit; font-weight: 750; cursor: pointer; }
+    button.action:disabled { opacity: .55; cursor: wait; }
+    .hint { margin: 18px 0 0; color: var(--muted); font-size: .9rem; }
+    .error { color: #ff9a9a; }
+    .legend { display: flex; justify-content: center; gap: 18px; margin-top: 16px; color: var(--muted); font-size: .9rem; }
+    .legend strong { color: var(--text); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Tic-Tac Toe</h1>
+    <section class="panel" aria-label="Игра в крестики-нолики">
+      <p id="status" class="status" role="status" aria-live="polite">Create game…</p>
+      <div id="board" class="board" aria-label="Игровое поле">
+        <button class="cell" data-index="0" aria-label="Клетка 1" disabled></button>
+        <button class="cell" data-index="1" aria-label="Клетка 2" disabled></button>
+        <button class="cell" data-index="2" aria-label="Клетка 3" disabled></button>
+        <button class="cell" data-index="3" aria-label="Клетка 4" disabled></button>
+        <button class="cell" data-index="4" aria-label="Клетка 5" disabled></button>
+        <button class="cell" data-index="5" aria-label="Клетка 6" disabled></button>
+        <button class="cell" data-index="6" aria-label="Клетка 7" disabled></button>
+        <button class="cell" data-index="7" aria-label="Клетка 8" disabled></button>
+        <button class="cell" data-index="8" aria-label="Клетка 9" disabled></button>
+      </div>
+      <div class="actions"><button id="new-game" class="action">New game</button></div>
+      <p id="hint" class="hint">Your Turn.</p>
+      <p><span id="game-id"></span></p>
+    </section>
+  </main>
+  <script>
+    const statusElement = document.getElementById('status');
+    const hintElement = document.getElementById('hint');
+    const newGameButton = document.getElementById('new-game');
+    const cells = [...document.querySelectorAll('.cell')];
+    const winningLines = [
+      [0, 1, 2], [3, 4, 5], [6, 7, 8],
+      [0, 3, 6], [1, 4, 7], [2, 5, 8],
+      [0, 4, 8], [2, 4, 6]
+    ];
+    let gameId = null;
+    let field = Array.from({ length: 3 }, () => [0, 0, 0]);
+    let busy = false;
+    let finished = false;
+
+    function winnerOf(board) {
+      for (const line of winningLines) {
+        const values = line.map(index => board[Math.floor(index / 3)][index % 3]);
+        if (values[0] !== 0 && values.every(value => value === values[0])) {
+          return { player: values[0], line };
+        }
+      }
+      return null;
+    }
+
+    function render() {
+      const result = winnerOf(field);
+      const full = field.every(row => row.every(cell => cell !== 0));
+      finished = Boolean(result) || full;
+      cells.forEach((button, index) => {
+        const value = field[Math.floor(index / 3)][index % 3];
+        button.textContent = value === 1 ? '×' : value === 2 ? '○' : '';
+        button.classList.toggle('o', value === 2);
+        button.classList.toggle('winner', Boolean(result && result.line.includes(index)));
+        button.disabled = busy || finished || value !== 0 || !gameId;
+      });
+      if (result) {
+        statusElement.textContent = result.player === 1 ? 'You win!' : 'PC win';
+      } else if (full) {
+        statusElement.textContent = 'Draw!';
+      } else if (!busy) {
+        statusElement.textContent = 'Your turn';
+      }
+    }
+
+    async function createGame() {
+      busy = true;
+      finished = false;
+      gameId = null;
+      field = Array.from({ length: 3 }, () => [0, 0, 0]);
+      newGameButton.disabled = true;
+      cells.forEach(button => { button.disabled = true; button.classList.remove('winner', 'o'); button.textContent = ''; });
+      statusElement.textContent = 'Create new game…';
+      hintElement.textContent = '';
+      try {
+        const response = await fetch('/game', { method: 'POST' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Не удалось создать игру');
+        gameId = data.uuid;
+        document.getElementById("game-id").textContent = gameId;
+        field = data.field;
+        busy = false;
+        render();
+      } catch (error) {
+        busy = false;
+        statusElement.textContent = 'Не удалось подключиться к серверу';
+        statusElement.classList.add('error');
+        hintElement.textContent = error.message;
+      } finally {
+        newGameButton.disabled = false;
+      }
+    }
+
+    async function makeMove(index) {
+      if (busy || finished || !gameId) return;
+      const row = Math.floor(index / 3);
+      const col = index % 3;
+      if (field[row][col] !== 0) return;
+      field[row][col] = 1;
+      busy = true;
+      statusElement.textContent = 'PC Turn…';
+      cells.forEach(button => { button.disabled = true; });
+      try {
+        const response = await fetch(`/game/${gameId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ field })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Не удалось сделать ход');
+        field = data.field;
+        statusElement.classList.remove('error');
+      } catch (error) {
+
+        field[row][col] = 0;
+        statusElement.textContent = 'Ошибка хода';
+        statusElement.classList.add('error');
+        hintElement.textContent = error.message;
+      } finally {
+        busy = false;
+        render();
+      }
+    }
+
+    cells.forEach(button => button.addEventListener('click', () => makeMove(Number(button.dataset.index))));
+    newGameButton.addEventListener('click', createGame);
+    createGame();
+  </script>
+</body>
+</html>
